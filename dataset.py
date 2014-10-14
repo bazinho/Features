@@ -27,6 +27,11 @@ class dataset:
     self.createGZIP()
         
   def readClassfile(self):
+    """ 
+    Creates two dictionaries:
+	self.mapFile[filename] = {'class': classname} 
+	self.ClassToId[classname] = classId
+    """
     if os.path.isfile(self.classfile):
       with open(self.classfile, 'rb') as fdclassfile:
 	self.mapClassToId['Benign'] = len(self.mapClassToId) + 1
@@ -40,6 +45,9 @@ class dataset:
 	      print("File: %s - Class: %s (%d)" %(filename,classname,self.mapClassToId[classname])) 
 
   def extractFileContent(self,filename):
+    """ 
+    Creates self.contents: a numpy.array with file contents 
+    """
     if os.path.isfile(os.path.join(self.featuredir,filename)):
       with open(os.path.join(self.featuredir,filename), 'rb') as fdfeaturefile:
 	if filename not in self.mapFile:
@@ -47,31 +55,35 @@ class dataset:
 	self.content = numpy.array(bytearray(fdfeaturefile.read()))
         
   def createGZIP(self):
+    """
+    Creates GZIP file containing datasets
+    """
     self.M = 0
     for (dirpath, dirnames, filelist) in os.walk(self.featuredir):
       for filename in filelist:
-        self.M += os.path.getsize(os.path.join(dirpath,filename))-self.numfeatures+1
+        #self.M += os.path.getsize(os.path.join(dirpath,filename))-self.numfeatures+1
+        self.M += os.path.getsize(os.path.join(dirpath,filename))/self.numfeatures
     if self.verbose:
       print("M: %d" %(self.M)) 
     self.data  = numpy.zeros((self.M, self.numfeatures), dtype=numpy.float32)
-    self.label = numpy.zeros((self.M), dtype=numpy.int32)
-    
+    self.label = numpy.zeros((self.M), dtype=numpy.int32)    
     m = 0
     for (dirpath, dirnames, filelist) in os.walk(self.featuredir):
       for filename in filelist:
         self.extractFileContent(filename)
-        for w in xrange(0,len(self.content)-self.numfeatures+1):
-          self.data[m]  += self.content[w:w+self.numfeatures]
+        #for w in xrange(0,len(self.content)-self.numfeatures+1):
+          #self.data[m]  += self.content[w:w+self.numfeatures]
+          #self.label[m] += self.mapClassToId[self.mapFile[filename]['class']]
+          #m += 1
+        for w in xrange(0,len(self.content)/self.numfeatures):
+          self.data[m]  += self.content[w*self.numfeatures:w*self.numfeatures+self.numfeatures]
           self.label[m] += self.mapClassToId[self.mapFile[filename]['class']]
           m += 1
     self.dataset = (self.data, self.label), (self.data, self.label), (self.data, self.label)
-    #print "Dataset:"
-    #print self.dataset
-    #print "M x N: ", self.dataset[0].shape
-    #plt.hist(self.data, bins = range(self.data.max()))
-    #plt.show()
+    if self.verbose:
+      print "M x N: ", self.dataset[0][0].shape
+      print "Dataset:\n",self.dataset
     fdout = gzip.open(self.outputfile, 'wb')
-    #fdout = open(self.outputfile, 'wb')
     cPickle.dump(self.dataset, fdout)
     fdout.close()
     
