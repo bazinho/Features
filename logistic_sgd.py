@@ -202,7 +202,7 @@ def load_data(dataset):
 
 def sgd_optimization(learning_rate=0.13, n_epochs=100,
                            dataset='default.pkl.gz',
-                           batch_size=600):
+                           batch_size=500):
     """
     Demonstrate stochastic gradient descent optimization of a log-linear
     model
@@ -243,18 +243,21 @@ def sgd_optimization(learning_rate=0.13, n_epochs=100,
                            # [int] labels
 
     # construct the logistic regression class
+    n_samples = train_set_x.get_value(borrow=True).shape[0]
     n_features = train_set_x.get_value(borrow=True).shape[1]
     n_classes = int(train_set_y.owner.inputs[0].get_value().max())+1
     classifier = LogisticRegression(input=x, n_in = n_features, n_out = n_classes)
-    try:
-      save_file = open('model.pkl', 'rb')
-    except IOError:
-      print '   ... creating new model'      
-    else:
-      print '   ... loading previous model'
-      classifier.W.set_value(cPickle.load(save_file), borrow=True)
-      classifier.b.set_value(cPickle.load(save_file), borrow=True)
-      save_file.close()
+    
+    # Loads the model Theta = (W,b) from model.pkl if exists
+    #try:
+      #save_file = open('model.pkl', 'rb')
+    #except IOError:
+      #print '   ... creating new model'      
+    #else:
+      #print '   ... loading previous model'
+      #classifier.W.set_value(cPickle.load(save_file), borrow=True)
+      #classifier.b.set_value(cPickle.load(save_file), borrow=True)
+      #save_file.close()
 
     # the cost we minimize during training is the negative log likelihood of
     # the model in symbolic format
@@ -298,7 +301,8 @@ def sgd_optimization(learning_rate=0.13, n_epochs=100,
     ###############
     print '... training the model'
     # early-stopping parameters
-    patience = 5000  # look as this many examples regardless
+    # patience = 5000  # look as this many examples regardless
+    patience = n_samples  # look as this many examples regardless
     patience_increase = 2  # wait this much longer when a new best is
                                   # found
     improvement_threshold = 0.995  # a relative improvement of this much is
@@ -367,6 +371,7 @@ def sgd_optimization(learning_rate=0.13, n_epochs=100,
                           os.path.split(__file__)[1] +
                           ' ran for %.1fs' % ((end_time - start_time)))
 
+    # Saves the model Theta = (W,b) into model.pkl file
     try:
       save_file = open('model.pkl', 'wb')
     except IOError:
