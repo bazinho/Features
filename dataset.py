@@ -17,14 +17,7 @@ class dataset:
     self.mapClassToId = {}    
     self.readClassfile()
     self.numfeatures = 784
-    #trainset_size = dataset_size * 60 / 100
-    #validset_size = dataset_size * 20 / 100
-    #testset_size = dataset_size - trainset_size - validset_size
-    #trainset = numpy.zeros((trainset_size,numfeatures), dtype=numpy.float32) , numpy.zeros(trainset_size, dtype=numpy.int32)
-    #validset = numpy.zeros((validset_size,numfeatures), dtype=numpy.float32) , numpy.zeros(validset_size, dtype=numpy.int32)
-    #testset  = numpy.zeros((testset_size,numfeatures),  dtype=numpy.float32) , numpy.zeros(testset_size,  dtype=numpy.int32)
-    #self.dataset = trainset, validset, testset
-    self.createGZIP()
+    self.createPKL()
         
   def readClassfile(self):
     """ 
@@ -54,19 +47,25 @@ class dataset:
 	  self.mapFile[filename] = {'class': 'Benign'}
 	self.content = numpy.array(bytearray(fdfeaturefile.read()))
         
-  def createGZIP(self):
+  def createPKL(self):
     """
-    Creates GZIP file containing datasets
+    Creates pickle file (PKL) containing datasets
     """
+    # Set M as the sum of all malware file sizes in featuredir 
     self.M = 0
     for (dirpath, dirnames, filelist) in os.walk(self.featuredir):
       for filename in filelist:
         #self.M += os.path.getsize(os.path.join(dirpath,filename))-self.numfeatures+1
         self.M += os.path.getsize(os.path.join(dirpath,filename))/self.numfeatures
     if self.verbose:
-      print("M: %d" %(self.M)) 
+      print("M: %d" %(self.M))
+      
+    # Creates M x N data array and M label vector
     self.data  = numpy.zeros((self.M, self.numfeatures), dtype=numpy.float32)
-    self.label = numpy.zeros((self.M), dtype=numpy.int32)    
+    self.label = numpy.zeros((self.M), dtype=numpy.int32)
+    
+    # For each malware in featuredir extracts nonoverlap windows of 
+    # file content and insert into dataset with malware label
     m = 0
     for (dirpath, dirnames, filelist) in os.walk(self.featuredir):
       for filename in filelist:
@@ -79,11 +78,23 @@ class dataset:
           self.data[m]  += self.content[w*self.numfeatures:w*self.numfeatures+self.numfeatures]
           self.label[m] += self.mapClassToId[self.mapFile[filename]['class']]
           m += 1
-    self.dataset = (self.data, self.label), (self.data, self.label), (self.data, self.label)
+          
+    # Splits dataset randomly into trainset (60%), validset (20%) and testset (20%)
+    trainset_size = M * 0.6
+    validset_size = M * 0.2
+    testset_size = M - trainset_size - validset_size
+    randM = numpy.random.permutation(M)
+    self.dataset = (self.data[randM[0:trainset_size]], self.label[randM[0:trainset_size]]),
+                   (self.data[randM[trainset_size:trainset_size+validset_size]], self.label[randM[trainset_size:trainset_size+validset_size]]),
+                   (self.data[randM[trainset_size+validset_size:]], self.label[randM[trainset_size+validset_size:]])
     if self.verbose:
-      print "M x N: ", self.dataset[0][0].shape
-      print "Dataset:\n",self.dataset
-    fdout = gzip.open(self.outputfile, 'wb')
+      print "Datasets:\n",self.dataset
+      print "Trainset size: ", self.dataset[0].shape
+      print "Validset size: ", self.dataset[1].shape
+      print "Testset size: ", self.dataset[2].shape
+      
+    # Creates pickle file containing dataset 
+    fdout = open(self.outputfile, 'wb')
     cPickle.dump(self.dataset, fdout)
     fdout.close()
     
