@@ -331,11 +331,17 @@ def test_SdA(finetune_lr=0.1, pretraining_epochs=15,
 
     # numpy random generator
     numpy_rng = numpy.random.RandomState(89677)
+    
+    # Set number of samples / features /classes used by SdA
+    n_samples = train_set_x.get_value(borrow=True).shape[0]
+    n_features = train_set_x.get_value(borrow=True).shape[1]
+    n_classes = int(train_set_y.owner.inputs[0].get_value().max())+1  # TODO: Set staticaly to max malware class ID
+    
     print '... building the model'
     # construct the stacked denoising autoencoder class
-    sda = SdA(numpy_rng=numpy_rng, n_ins=28 * 28,
+    sda = SdA(numpy_rng=numpy_rng, n_ins=n_features,
               hidden_layers_sizes=[1000, 1000, 1000],
-              n_outs=10)
+              n_outs=n_classes)
 
     #########################
     # PRETRAINING THE MODEL #
