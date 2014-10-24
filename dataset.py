@@ -80,18 +80,16 @@ class dataset:
           m += 1
           
     # Splits dataset randomly into trainset (60%), validset (20%) and testset (20%)
-    trainset_size = M * 0.6
-    validset_size = M * 0.2
-    testset_size = M - trainset_size - validset_size
-    randM = numpy.random.permutation(M)
-    self.dataset = (self.data[randM[0:trainset_size]], self.label[randM[0:trainset_size]]),
-                   (self.data[randM[trainset_size:trainset_size+validset_size]], self.label[randM[trainset_size:trainset_size+validset_size]]),
-                   (self.data[randM[trainset_size+validset_size:]], self.label[randM[trainset_size+validset_size:]])
+    trainset_size = self.M * 0.6
+    validset_size = self.M * 0.2
+    testset_size = self.M - trainset_size - validset_size
+    randM = numpy.random.permutation(self.M)
+    self.dataset = (self.data[randM[0:trainset_size]], self.label[randM[0:trainset_size]]), (self.data[randM[trainset_size:trainset_size+validset_size]], self.label[randM[trainset_size:trainset_size+validset_size]]), (self.data[randM[trainset_size+validset_size:]], self.label[randM[trainset_size+validset_size:]])
     if self.verbose:
       print "Datasets:\n",self.dataset
-      print "Trainset size: ", self.dataset[0].shape
-      print "Validset size: ", self.dataset[1].shape
-      print "Testset size: ", self.dataset[2].shape
+      print "Trainset size: ", self.dataset[0][0].shape
+      print "Validset size: ", self.dataset[1][0].shape
+      print "Testset size: ", self.dataset[2][0].shape
       
     # Creates pickle file containing dataset 
     fdout = open(self.outputfile, 'wb')
