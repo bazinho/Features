@@ -59,6 +59,7 @@ class dataset:
         self.M += os.path.getsize(os.path.join(dirpath,filename))/self.numfeatures
     if self.verbose:
       print("M: %d" %(self.M))
+      print("# of classes: %d" %(len(self.mapClassToId)))
       
     # Creates M x N data array and M label vector
     self.data  = numpy.zeros((self.M, self.numfeatures), dtype=numpy.float32)
@@ -78,7 +79,7 @@ class dataset:
           self.data[m]  += self.content[w*self.numfeatures:w*self.numfeatures+self.numfeatures]
           self.label[m] += self.mapClassToId[self.mapFile[filename]['class']]
           m += 1
-          
+
     # Splits dataset randomly into trainset (60%), validset (20%) and testset (20%)
     trainset_size = self.M * 0.6
     validset_size = self.M * 0.2
