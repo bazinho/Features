@@ -335,7 +335,8 @@ def test_SdA(finetune_lr=0.1, pretraining_epochs=15,
     # Set number of samples / features /classes used by SdA
     n_samples = train_set_x.get_value(borrow=True).shape[0]
     n_features = train_set_x.get_value(borrow=True).shape[1]
-    n_classes = int(train_set_y.owner.inputs[0].get_value().max())+1  # TODO: Set staticaly to max malware class ID
+    #n_classes = int(train_set_y.owner.inputs[0].get_value().max())+1  # TODO: Set staticaly to max malware class ID
+    n_classes = 180
     
     print '... building the model'
     # construct the stacked denoising autoencoder class
@@ -365,7 +366,19 @@ def test_SdA(finetune_lr=0.1, pretraining_epochs=15,
                          lr=pretrain_lr))
             print 'Pre-training layer %i, epoch %d, cost ' % (i, epoch),
             print numpy.mean(c)
-
+            
+	#TODO: For each SdA layer, saves layer parameters in a separate file
+	try:
+	  save_file = open('layer%d-params.pkl' %(i), 'wb')
+	except IOError:
+	  print '   ... problems saving layer %d params' %(i)      
+	else:
+	  print '   ... saving layer %d params' %(i)
+	  # Saving a list of parameters (0: W, 1: b, 2: b_prime)
+	  for p in xrange(len(sda.dA_layers[i].params)):
+	    cPickle.dump(sda.dA_layers[i].params[p].get_value(borrow=True), save_file, -1)
+	  save_file.close()
+	
     end_time = time.clock()
 
     print >> sys.stderr, ('The pretraining code for file ' +
@@ -448,6 +461,17 @@ def test_SdA(finetune_lr=0.1, pretraining_epochs=15,
                           os.path.split(__file__)[1] +
                           ' ran for %.2fm' % ((end_time - start_time) / 60.))
 
+    #TODO: Saves SdA parameters (sda.dA_layers[i].params) in a file
+    try:
+      save_file = open('sda-params.pkl', 'wb')
+    except IOError:
+      print '   ... problems saving SdA params'      
+    else:
+      print '   ... saving SdA params'
+      # Saving a list of parameters (layer[0] -> 0: W, 1: b, layer[1] -> 2: W, 3: b, ...)
+      for p in xrange(len(sda.params)):
+	cPickle.dump(sda.params[p].get_value(borrow=True), save_file, -1)
+      save_file.close()
 
 if __name__ == '__main__':
     test_SdA()
