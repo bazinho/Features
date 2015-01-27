@@ -5,6 +5,7 @@ import gzip
 import os
 import sys
 import time
+import traceback, optparse
 
 import numpy
 
@@ -288,13 +289,18 @@ def test_DBN(finetune_lr=0.1, pretraining_epochs=100,
     # compute number of minibatches for training, validation and testing
     n_train_batches = train_set_x.get_value(borrow=True).shape[0] / batch_size
 
+    # Set number of samples / features / classes used
+    n_samples = train_set_x.get_value(borrow=True).shape[0]
+    n_features = train_set_x.get_value(borrow=True).shape[1]
+    n_classes = len(numpy.unique(train_set_y.owner.inputs[0].get_value()))
+
     # numpy random generator
     numpy_rng = numpy.random.RandomState(123)
     print '... building the model'
     # construct the Deep Belief Network
-    dbn = DBN(numpy_rng=numpy_rng, n_ins=28 * 28,
+    dbn = DBN(numpy_rng=numpy_rng, n_ins=n_features,
               hidden_layers_sizes=[1000, 1000, 1000],
-              n_outs=10)
+              n_outs=n_classes)
 
     #########################
     # PRETRAINING THE MODEL #
@@ -402,6 +408,32 @@ def test_DBN(finetune_lr=0.1, pretraining_epochs=100,
                           ' ran for %.2fm' % ((end_time - start_time)
                                               / 60.))
 
+def main ():
+    global options
+    test_DBN(dataset=options.dataset)
 
 if __name__ == '__main__':
-    test_DBN()
+    try:
+        start_time = time.time()
+        usage = 'Usage: %prog -d dataset.pkl [-h,--help] [-v,--verbose] [--version]'
+        parser = optparse.OptionParser(usage=usage, version='0.1')
+        parser.add_option ('-v', '--verbose', action='store_true', default=False, help='verbose output')
+        parser.add_option ('-d', '--dataset', action="store", type="string", dest="dataset", help='dataset in pickle format')
+        (options, args) = parser.parse_args()
+        if not options.dataset:
+          parser.error ('missing option: -d dataset.pkl')
+        if options.verbose: print 'Start time:', time.asctime()
+        main()
+        if options.verbose: print 'End time:', time.asctime()
+        if options.verbose: print 'TOTAL TIME:', (time.time() - start_time), 's'
+        sys.exit(0)
+    except KeyboardInterrupt, e: # Ctrl-C
+        raise e
+    except SystemExit, e: # sys.exit()
+        raise e
+    except Exception, e:
+        print 'ERROR, UNEXPECTED EXCEPTION'
+        print str(e)
+        traceback.print_exc()
+        os._exit(1)
+

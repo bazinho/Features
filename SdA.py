@@ -34,6 +34,7 @@ import gzip
 import os
 import sys
 import time
+import traceback, optparse
 
 import numpy
 
@@ -295,7 +296,7 @@ class SdA(object):
 
 def test_SdA(finetune_lr=0.1, pretraining_epochs=15,
              pretrain_lr=0.001, training_epochs=1000,
-             dataset='mnist.pkl.gz', batch_size=1):
+             dataset='dataset.pkl', batch_size=1000):
     """
     Demonstrates how to train and test a stochastic denoising autoencoder.
 
@@ -329,19 +330,21 @@ def test_SdA(finetune_lr=0.1, pretraining_epochs=15,
     n_train_batches = train_set_x.get_value(borrow=True).shape[0]
     n_train_batches /= batch_size
 
+    # Set number of samples / features / classes used
+    n_samples = train_set_x.get_value(borrow=True).shape[0]
+    n_features = train_set_x.get_value(borrow=True).shape[1]
+    n_classes = len(numpy.unique(train_set_y.owner.inputs[0].get_value()))
+
     # numpy random generator
     numpy_rng = numpy.random.RandomState(89677)
     
-    # Set number of samples / features /classes used by SdA
-    n_samples = train_set_x.get_value(borrow=True).shape[0]
-    n_features = train_set_x.get_value(borrow=True).shape[1]
-    #n_classes = int(train_set_y.owner.inputs[0].get_value().max())+1  # TODO: Set staticaly to max malware class ID
-    n_classes = 180
-    
     print '... building the model'
     # construct the stacked denoising autoencoder class
+    #sda = SdA(numpy_rng=numpy_rng, n_ins=n_features,
+    #          hidden_layers_sizes=[1000, 1000, 1000],
+    #          n_outs=n_classes)
     sda = SdA(numpy_rng=numpy_rng, n_ins=n_features,
-              hidden_layers_sizes=[1000, 1000, 1000],
+              hidden_layers_sizes=[100, 100, 100],
               n_outs=n_classes)
 
     #########################
@@ -473,5 +476,31 @@ def test_SdA(finetune_lr=0.1, pretraining_epochs=15,
 	cPickle.dump(sda.params[p].get_value(borrow=True), save_file, -1)
       save_file.close()
 
+def main ():
+    global options
+    test_SdA(dataset=options.dataset)
+
 if __name__ == '__main__':
-    test_SdA()
+    try:
+        start_time = time.time()
+        usage = 'Usage: %prog -d dataset.pkl [-h,--help] [-v,--verbose] [--version]'
+        parser = optparse.OptionParser(usage=usage, version='0.1')
+        parser.add_option ('-v', '--verbose', action='store_true', default=False, help='verbose output')
+        parser.add_option ('-d', '--dataset', action="store", type="string", dest="dataset", help='dataset in pickle format')
+        (options, args) = parser.parse_args()
+        if not options.dataset:
+          parser.error ('missing option: -d dataset.pkl')
+        if options.verbose: print 'Start time:', time.asctime()
+        main()
+        if options.verbose: print 'End time:', time.asctime()
+        if options.verbose: print 'TOTAL TIME:', (time.time() - start_time), 's'
+        sys.exit(0)
+    except KeyboardInterrupt, e: # Ctrl-C
+        raise e
+    except SystemExit, e: # sys.exit()
+        raise e
+    except Exception, e:
+        print 'ERROR, UNEXPECTED EXCEPTION'
+        print str(e)
+        traceback.print_exc()
+        os._exit(1)

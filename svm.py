@@ -1,40 +1,3 @@
-"""
-This tutorial introduces logistic regression using Theano and stochastic
-gradient descent.
-
-Logistic regression is a probabilistic, linear classifier. It is parametrized
-by a weight matrix :math:`W` and a bias vector :math:`b`. Classification is
-done by projecting data points onto a set of hyperplanes, the distance to
-which is used to determine a class membership probability.
-
-Mathematically, this can be written as:
-
-.. math::
-  P(Y=i|x, W,b) &= softmax_i(W x + b) \\
-                &= \frac {e^{W_i x + b_i}} {\sum_j e^{W_j x + b_j}}
-
-
-The output of the model or prediction is then done by taking the argmax of
-the vector whose i'th element is P(Y=i|x).
-
-.. math::
-
-  y_{pred} = argmax_i P(Y=i|x,W,b)
-
-
-This tutorial presents a stochastic gradient descent optimization method
-suitable for large datasets, and a conjugate gradient optimization method
-that is suitable for smaller datasets.
-
-
-References:
-
-    - textbooks: "Pattern Recognition and Machine Learning" -
-                 Christopher M. Bishop, section 4.3.2
-
-"""
-__docformat__ = 'restructedtext en'
-
 import cPickle
 import gzip
 import os
@@ -47,16 +10,9 @@ import numpy
 import theano
 import theano.tensor as T
 
-
-class LogisticRegression(object):
-    """Multi-class Logistic Regression Class
-
-    The logistic regression is fully described by a weight matrix :math:`W`
-    and bias vector :math:`b`. Classification is done by projecting data
-    points onto a set of hyperplanes, the distance to which is used to
-    determine a class membership probability.
+class SVM(object):
+    """SVM classifier
     """
-
     def __init__(self, input, n_in, n_out):
         """ Initialize the parameters of the logistic regression
 
@@ -71,6 +27,7 @@ class LogisticRegression(object):
         :type n_out: int
         :param n_out: number of output units, the dimension of the space in
                       which the labels lie
+
         """
 
         # initialize with 0 the weights W as a matrix of shape (n_in, n_out)
@@ -82,53 +39,28 @@ class LogisticRegression(object):
                                                  dtype=theano.config.floatX),
                                name='b', borrow=True)
 
-        # compute vector of class-membership probabilities in symbolic form
-        self.p_y_given_x = T.nnet.softmax(T.dot(input, self.W) + self.b)
-
-        # compute prediction as class whose probability is maximal in
-        # symbolic form
-        self.y_pred = T.argmax(self.p_y_given_x, axis=1)
-
         # parameters of the model
         self.params = [self.W, self.b]
 
-    def negative_log_likelihood(self, y):
-        """Return the mean of the negative log-likelihood of the prediction
-        of this model under a given target distribution.
+        self.output = T.dot(input, self.W) + self.b
 
-        .. math::
+        self.y_pred = T.argmax(self.output, axis=1)
 
-            \frac{1}{|\mathcal{D}|} \mathcal{L} (\theta=\{W,b\}, \mathcal{D}) =
-            \frac{1}{|\mathcal{D}|} \sum_{i=0}^{|\mathcal{D}|} \log(P(Y=y^{(i)}|x^{(i)}, W,b)) \\
-                \ell (\theta=\{W,b\}, \mathcal{D})
+    def hinge(self, u):
+            return T.maximum(0, 1 - u)
 
-        :type y: theano.tensor.TensorType
-        :param y: corresponds to a vector that gives for each example the
-                  correct label
+    def svm_cost(self, y1):
+        """ return the one-vs-all svm cost
+        given ground-truth y in one-hot {-1, 1} form """
+        y1_printed = theano.printing.Print('this is important')(T.max(y1))
+        margin = y1 * self.output
+        cost = self.hinge(margin).mean(axis=0).sum()
+        return cost
 
-        Note: we use the mean instead of the sum so that
-              the learning rate is less dependent on the batch size
-        """
-        # y.shape[0] is (symbolically) the number of rows in y, i.e.,
-        # number of examples (call it n) in the minibatch
-        # T.arange(y.shape[0]) is a symbolic vector which will contain
-        # [0,1,2,... n-1] T.log(self.p_y_given_x) is a matrix of
-        # Log-Probabilities (call it LP) with one row per example and
-        # one column per class LP[T.arange(y.shape[0]),y] is a vector
-        # v containing [LP[0,y[0]], LP[1,y[1]], LP[2,y[2]], ...,
-        # LP[n-1,y[n-1]]] and T.mean(LP[T.arange(y.shape[0]),y]) is
-        # the mean (across minibatch examples) of the elements in v,
-        # i.e., the mean log-likelihood across the minibatch.
-        return -T.mean(T.log(self.p_y_given_x)[T.arange(y.shape[0]), y])
 
     def errors(self, y):
-        """Return a float representing the number of errors in the minibatch
-        over the total number of examples of the minibatch ; zero one
-        loss over the size of the minibatch
-
-        :type y: theano.tensor.TensorType
-        :param y: corresponds to a vector that gives for each example the
-                  correct label
+        """ compute zero-one loss
+        note, y is in integer form, not one-hot
         """
 
         # check if y has same dimension of y_pred
@@ -154,10 +86,10 @@ def load_data(dataset):
     #############
     # LOAD DATA #
     #############
+
     print '... loading data'
 
     # Load the dataset
-    #f = gzip.open(dataset, 'rb')
     f = open(dataset, 'rb')
     train_set, valid_set, test_set = cPickle.load(f)
     f.close()
@@ -184,6 +116,13 @@ def load_data(dataset):
         shared_y = theano.shared(numpy.asarray(data_y,
                                                dtype=theano.config.floatX),
                                  borrow=borrow)
+
+        # one-hot encoded labels as {-1, 1}
+        n_classes = len(numpy.unique(data_y)) 
+        y1 = -1 * numpy.ones((data_y.shape[0], n_classes))
+        y1[numpy.arange(data_y.shape[0]), data_y] = 1
+        shared_y1 = theano.shared(numpy.asarray(y1, dtype=theano.config.floatX), borrow=borrow)
+        
         # When storing data on the GPU it has to be stored as floats
         # therefore we will store the labels as ``floatX`` as well
         # (``shared_y`` does exactly that). But during our computations
@@ -191,23 +130,24 @@ def load_data(dataset):
         # floats it doesn't make sense) therefore instead of returning
         # ``shared_y`` we will have to cast it to int. This little hack
         # lets ous get around this issue
-        return shared_x, T.cast(shared_y, 'int32')
+        return shared_x, T.cast(shared_y, 'int32'), T.cast(shared_y1,  'int32')
 
-    test_set_x, test_set_y = shared_dataset(test_set)
-    valid_set_x, valid_set_y = shared_dataset(valid_set)
-    train_set_x, train_set_y = shared_dataset(train_set)
+    test_set_x, test_set_y, test_set_y1 = shared_dataset(test_set)
+    valid_set_x, valid_set_y, valid_set_y1 = shared_dataset(valid_set)
+    train_set_x, train_set_y, train_set_y1 = shared_dataset(train_set)
 
-    rval = [(train_set_x, train_set_y), (valid_set_x, valid_set_y),
-            (test_set_x, test_set_y)]
+    rval = [(train_set_x, train_set_y, train_set_y1),
+            (valid_set_x, valid_set_y, valid_set_y1),
+            (test_set_x, test_set_y, test_set_y1)]
     return rval
 
-
-def sgd_optimization(learning_rate=0.13, n_epochs=100,
-                           dataset='default.pkl.gz',
-                           batch_size=1000):
+def svm_optimization(learning_rate=0.13, n_epochs=1000,
+                     dataset='mnist.pkl',
+                     batch_size=1000):
     """
-    Demonstrate stochastic gradient descent optimization of a log-linear
-    model
+    Demonstrate stochastic gradient descent optimization of SVM
+
+    This is demonstrated on MNIST.
 
     :type learning_rate: float
     :param learning_rate: learning rate used (factor for the stochastic
@@ -217,21 +157,25 @@ def sgd_optimization(learning_rate=0.13, n_epochs=100,
     :param n_epochs: maximal number of epochs to run the optimizer
 
     :type dataset: string
-    :param dataset: the path of the dataset file
+    :param dataset: the path of the MNIST dataset file from
+                 http://www.iro.umontreal.ca/~lisa/deep/data/mnist/mnist.pkl.gz
 
-    :type batch_size: int
-    :param batch_size: size of minibatch during the training fase
     """
     datasets = load_data(dataset)
 
-    train_set_x, train_set_y = datasets[0]
-    valid_set_x, valid_set_y = datasets[1]
-    test_set_x, test_set_y = datasets[2]
+    train_set_x, train_set_y, train_set_y1 = datasets[0]
+    valid_set_x, valid_set_y, valid_set_y1 = datasets[1]
+    test_set_x, test_set_y, test_set_y1 = datasets[2]
 
     # compute number of minibatches for training, validation and testing
     n_train_batches = train_set_x.get_value(borrow=True).shape[0] / batch_size
     n_valid_batches = valid_set_x.get_value(borrow=True).shape[0] / batch_size
     n_test_batches = test_set_x.get_value(borrow=True).shape[0] / batch_size
+    
+    # Set number of samples / features / classes used
+    n_samples = train_set_x.get_value(borrow=True).shape[0]
+    n_features = train_set_x.get_value(borrow=True).shape[1]
+    n_classes = len(numpy.unique(train_set_y.owner.inputs[0].get_value()))
 
     ######################
     # BUILD ACTUAL MODEL #
@@ -243,29 +187,15 @@ def sgd_optimization(learning_rate=0.13, n_epochs=100,
     x = T.matrix('x')  # the data is presented as rasterized images
     y = T.ivector('y')  # the labels are presented as 1D vector of
                            # [int] labels
-
-    # Set number of samples / features / classes used
-    n_samples = train_set_x.get_value(borrow=True).shape[0]
-    n_features = train_set_x.get_value(borrow=True).shape[1]
-    n_classes = len(numpy.unique(train_set_y.owner.inputs[0].get_value()))
+    y1 = T.imatrix('y1') # for training, the labels are presented as 1D vector of
+                          # one-hot {-1, 1} labels                      
 
     # construct the logistic regression class
-    classifier = LogisticRegression(input=x, n_in=n_features, n_out=n_classes)
-    
-    # Loads the model Theta = (W,b) from model.pkl if exists
-    #try:
-      #save_file = open('model.pkl', 'rb')
-    #except IOError:
-      #print '   ... creating new model'      
-    #else:
-      #print '   ... loading previous model'
-      #classifier.W.set_value(cPickle.load(save_file), borrow=True)
-      #classifier.b.set_value(cPickle.load(save_file), borrow=True)
-      #save_file.close()
+    # Each MNIST image has size 28*28
+    classifier = SVM(input=x, n_in=n_features, n_out=n_classes)
 
-    # the cost we minimize during training is the negative log likelihood of
-    # the model in symbolic format
-    cost = classifier.negative_log_likelihood(y)
+    # the cost we minimize during training
+    cost = classifier.svm_cost(y1)
 
     # compiling a Theano function that computes the mistakes that are made by
     # the model on a minibatch
@@ -293,20 +223,17 @@ def sgd_optimization(learning_rate=0.13, n_epochs=100,
     # compiling a Theano function `train_model` that returns the cost, but in
     # the same time updates the parameter of the model based on the rules
     # defined in `updates`
-    train_model = theano.function(inputs=[index],
-            outputs=cost,
-            updates=updates,
-            givens={
-                x: train_set_x[index * batch_size:(index + 1) * batch_size],
-                y: train_set_y[index * batch_size:(index + 1) * batch_size]})
+    train_model = theano.function([index], cost, updates=updates,
+          givens={
+            x: train_set_x[index * batch_size: (index + 1) * batch_size],
+            y1: train_set_y1[index * batch_size: (index + 1) * batch_size]})
 
     ###############
     # TRAIN MODEL #
     ###############
     print '... training the model'
     # early-stopping parameters
-    # patience = 5000  # look as this many examples regardless
-    patience = n_samples  # look as this many examples regardless
+    patience = 5000  # look as this many examples regardless
     patience_increase = 2  # wait this much longer when a new best is
                                   # found
     improvement_threshold = 0.995  # a relative improvement of this much is
@@ -375,20 +302,9 @@ def sgd_optimization(learning_rate=0.13, n_epochs=100,
                           os.path.split(__file__)[1] +
                           ' ran for %.1fs' % ((end_time - start_time)))
 
-    # Saves the model Theta = (W,b) into model.pkl file
-    try:
-      save_file = open('model.pkl', 'wb')
-    except IOError:
-      print '   ... problems saving the model'      
-    else:
-      print '   ... saving the model'
-      cPickle.dump(classifier.W.get_value(borrow=True), save_file, -1)
-      cPickle.dump(classifier.b.get_value(borrow=True), save_file, -1)    
-      save_file.close()
-
 def main ():
     global options
-    sgd_optimization(dataset=options.dataset)
+    svm_optimization(dataset=options.dataset)
 
 if __name__ == '__main__':
     try:

@@ -1,3 +1,5 @@
 *.pyc
-testdir/*
+*.pkl
+*.gz
 samples-drebin0/*
+rbm_plots/*

@@ -7,6 +7,7 @@ to those without visible-visible and hidden-hidden connections.
 import cPickle
 import gzip
 import time
+import traceback, optparse
 import PIL.Image
 
 import numpy
@@ -344,6 +345,11 @@ def test_rbm(learning_rate=0.1, training_epochs=15,
     # compute number of minibatches for training, validation and testing
     n_train_batches = train_set_x.get_value(borrow=True).shape[0] / batch_size
 
+    # Set number of samples / features / classes used
+    n_samples = train_set_x.get_value(borrow=True).shape[0]
+    n_features = train_set_x.get_value(borrow=True).shape[1]
+    n_classes = len(numpy.unique(train_set_y.owner.inputs[0].get_value()))
+
     # allocate symbolic variables for the data
     index = T.lscalar()    # index to a [mini]batch
     x = T.matrix('x')  # the data is presented as rasterized images
@@ -358,7 +364,7 @@ def test_rbm(learning_rate=0.1, training_epochs=15,
                                      borrow=True)
 
     # construct the RBM class
-    rbm = RBM(input=x, n_visible=28 * 28,
+    rbm = RBM(input=x, n_visible=n_features,
               n_hidden=n_hidden, numpy_rng=rng, theano_rng=theano_rng)
 
     # get the cost and the gradient corresponding to one step of CD-15
@@ -463,5 +469,32 @@ def test_rbm(learning_rate=0.1, training_epochs=15,
     image.save('samples.png')
     os.chdir('../')
 
+def main ():
+    global options
+    test_rbm(dataset=options.dataset)
+
 if __name__ == '__main__':
-    test_rbm()
+    try:
+        start_time = time.time()
+        usage = 'Usage: %prog -d dataset.pkl [-h,--help] [-v,--verbose] [--version]'
+        parser = optparse.OptionParser(usage=usage, version='0.1')
+        parser.add_option ('-v', '--verbose', action='store_true', default=False, help='verbose output')
+        parser.add_option ('-d', '--dataset', action="store", type="string", dest="dataset", help='dataset in pickle format')
+        (options, args) = parser.parse_args()
+        if not options.dataset:
+          parser.error ('missing option: -d dataset.pkl')
+        if options.verbose: print 'Start time:', time.asctime()
+        main()
+        if options.verbose: print 'End time:', time.asctime()
+        if options.verbose: print 'TOTAL TIME:', (time.time() - start_time), 's'
+        sys.exit(0)
+    except KeyboardInterrupt, e: # Ctrl-C
+        raise e
+    except SystemExit, e: # sys.exit()
+        raise e
+    except Exception, e:
+        print 'ERROR, UNEXPECTED EXCEPTION'
+        print str(e)
+        traceback.print_exc()
+        os._exit(1)
+

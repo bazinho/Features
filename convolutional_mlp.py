@@ -26,6 +26,7 @@ import gzip
 import os
 import sys
 import time
+import traceback, optparse
 
 import numpy
 
@@ -104,8 +105,8 @@ class LeNetConvPoolLayer(object):
 
 
 def evaluate_lenet5(learning_rate=0.1, n_epochs=200,
-                    dataset='mnist.pkl.gz',
-                    nkerns=[20, 50], batch_size=500):
+                    dataset='dataset.pkl',
+                    nkerns=[20, 50], batch_size=1000):
     """ Demonstrates lenet on MNIST dataset
 
     :type learning_rate: float
@@ -137,6 +138,11 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,
     n_train_batches /= batch_size
     n_valid_batches /= batch_size
     n_test_batches /= batch_size
+
+    # Set number of samples / features / classes used
+    n_samples = train_set_x.get_value(borrow=True).shape[0]
+    n_features = train_set_x.get_value(borrow=True).shape[1]
+    n_classes = len(numpy.unique(train_set_y.owner.inputs[0].get_value()))
 
     # allocate symbolic variables for the data
     index = T.lscalar()  # index to a [mini]batch
@@ -181,7 +187,7 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,
                          n_out=500, activation=T.tanh)
 
     # classify the values of the fully-connected sigmoidal layer
-    layer3 = LogisticRegression(input=layer2.output, n_in=500, n_out=10)
+    layer3 = LogisticRegression(input=layer2.output, n_in=500, n_out=n_classes)
 
     # the cost we minimize during training is the NLL of the model
     cost = layer3.negative_log_likelihood(y)
@@ -295,9 +301,31 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,
                           os.path.split(__file__)[1] +
                           ' ran for %.2fm' % ((end_time - start_time) / 60.))
 
+def main ():
+    global options
+    evaluate_lenet5(dataset=options.dataset)
+
 if __name__ == '__main__':
-    evaluate_lenet5()
-
-
-def experiment(state, channel):
-    evaluate_lenet5(state.learning_rate, dataset=state.dataset)
+    try:
+        start_time = time.time()
+        usage = 'Usage: %prog -d dataset.pkl -c classes [-b batch] [-h,--help] [-v,--verbose] [--version]'
+        parser = optparse.OptionParser(usage=usage, version='0.1')
+        parser.add_option ('-v', '--verbose', action='store_true', default=False, help='verbose output')
+        parser.add_option ('-d', '--dataset', action="store", type="string", dest="dataset", help='dataset in pickle format')
+        (options, args) = parser.parse_args()
+        if not options.dataset:
+          parser.error ('missing option: -d dataset.pkl')
+        if options.verbose: print 'Start time:', time.asctime()
+        main()
+        if options.verbose: print 'End time:', time.asctime()
+        if options.verbose: print 'TOTAL TIME:', (time.time() - start_time), 's'
+        sys.exit(0)
+    except KeyboardInterrupt, e: # Ctrl-C
+        raise e
+    except SystemExit, e: # sys.exit()
+        raise e
+    except Exception, e:
+        print 'ERROR, UNEXPECTED EXCEPTION'
+        print str(e)
+        traceback.print_exc()
+        os._exit(1)
