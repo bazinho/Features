@@ -86,7 +86,7 @@ class DBN(object):
             if i == 0:
                 input_size = n_ins
             else:
-                input_size = hidden_layers_sizes[i - 1]
+                input_size = hidden_layers_sizes[i-1]
 
             # the input to this layer is either the activation of the
             # hidden layer below or the input of the DBN if you are on
@@ -94,7 +94,7 @@ class DBN(object):
             if i == 0:
                 layer_input = self.x
             else:
-                layer_input = self.sigmoid_layers[-1].output
+                layer_input = self.sigmoid_layers[i-1].output
 
             sigmoid_layer = HiddenLayer(rng=numpy_rng,
                                         input=layer_input,
@@ -210,10 +210,15 @@ class DBN(object):
         (test_set_x, test_set_y) = datasets[2]
 
         # compute number of minibatches for training, validation and testing
-        n_valid_batches = valid_set_x.get_value(borrow=True).shape[0]
-        n_valid_batches /= batch_size
-        n_test_batches = test_set_x.get_value(borrow=True).shape[0]
-        n_test_batches /= batch_size
+        #n_valid_batches = valid_set_x.get_value(borrow=True).shape[0]
+        #n_valid_batches /= batch_size
+        #n_test_batches = test_set_x.get_value(borrow=True).shape[0]
+        #n_test_batches /= batch_size
+
+        ### BUGFIX - Edmar Rezende (20150203)
+        # compute number of minibatches for training, validation and testing
+        n_valid_batches = valid_set_x.get_value(borrow=True).shape[0] / batch_size + (valid_set_x.get_value(borrow=True).shape[0] % batch_size != 0)
+        n_test_batches = test_set_x.get_value(borrow=True).shape[0] / batch_size + (test_set_x.get_value(borrow=True).shape[0] % batch_size != 0)
 
         index = T.lscalar('index')  # index to a [mini]batch
 
@@ -287,7 +292,11 @@ def test_DBN(finetune_lr=0.1, pretraining_epochs=100,
     test_set_x, test_set_y = datasets[2]
 
     # compute number of minibatches for training, validation and testing
-    n_train_batches = train_set_x.get_value(borrow=True).shape[0] / batch_size
+    #n_train_batches = train_set_x.get_value(borrow=True).shape[0] / batch_size
+
+    ### BUGFIX - Edmar Rezende (20150203)
+    # compute number of minibatches for training, validation and testing
+    n_train_batches = train_set_x.get_value(borrow=True).shape[0] / batch_size + (train_set_x.get_value(borrow=True).shape[0] % batch_size != 0)
 
     # Set number of samples / features / classes used
     n_samples = train_set_x.get_value(borrow=True).shape[0]
@@ -299,7 +308,7 @@ def test_DBN(finetune_lr=0.1, pretraining_epochs=100,
     print '... building the model'
     # construct the Deep Belief Network
     dbn = DBN(numpy_rng=numpy_rng, n_ins=n_features,
-              hidden_layers_sizes=[1000, 1000, 1000],
+              hidden_layers_sizes=[100, 100, 100],
               n_outs=n_classes)
 
     #########################
